@@ -1,0 +1,49 @@
+version: "3"
+
+services:
+  db:
+    restart: always
+    image: postgres:10-alpine
+    environment:
+      - POSTGRES_DB=app
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD
+    volumes:
+      - pgdata:/var/lib/postgresql/data/
+
+  app:
+    restart: always
+    build:
+      context: .
+    expose:
+      - "8000"
+    volumes:
+      - ./app:/app
+      - static_volume:/static
+    command: >
+      sh -c "python manage.py wait_for_db &&
+             python manage.py migrate &&
+             python manage.py collectstatic --no-input &&
+             gunicorn --bind 0.0.0.0:8000 todo.wsgi:application"
+    environment:
+      - DB_HOST=db
+      - DB_NAME=app
+      - DB_USER=postgres
+      - DB_PASS
+    depends_on:
+      - db
+
+  nginx:
+    restart: always
+    image: nginx:stable
+    volumes:
+      - ./config/nginx/conf.d:/etc/nginx/conf.d
+      - static_volume:/static
+    ports:
+      - "40777:80"
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  static_volume:
